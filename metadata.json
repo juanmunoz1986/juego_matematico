@@ -1,0 +1,6 @@
+{
+  "name": "AcuMath",
+  "description": "Juego de agilidad mental matemática con generación dinámica de ecuaciones, dificultad progresiva, sistema de combos y persistencia de puntajes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,46 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Glowing concentric rings in the background -->
+    <path
+        android:strokeColor="#1E2235"
+        android:strokeWidth="1"
+        android:pathData="M 54 14 A 40 40 0 1 1 53.9 14 Z" />
+    <path
+        android:strokeColor="#2E334D"
+        android:strokeWidth="2"
+        android:pathData="M 54 24 A 30 30 0 1 1 53.9 24 Z" />
+    <!-- Bright neon cyan protective border ring -->
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M 54 27 A 27 27 0 1 1 53.9 27 Z" />
+    <!-- Math Operators: Plus, Minus, Multiply, Brackets -->
+    <!-- Plus (+) in neon pink at top-left quadrant -->
+    <path
+        android:strokeColor="#FF007F"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M 38 45 H 48 M 43 40 V 50" />
+    <!-- Minus (-) in neon cyan at top-right quadrant -->
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M 60 45 H 70" />
+    <!-- Multiply (x) in neon cyan at bottom-left quadrant -->
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M 39 61 L 47 69 M 47 61 L 39 69" />
+    <!-- Brackets () in neon pink at bottom-right quadrant -->
+    <path
+        android:strokeColor="#FF007F"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M 61 61 Q 58 65 61 69 M 69 61 Q 72 65 69 69" />
+</vector>
