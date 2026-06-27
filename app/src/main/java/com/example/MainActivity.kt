@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
         val currentEquation by viewModel.currentEquation.collectAsState()
         val score by viewModel.score.collectAsState()
         val streak by viewModel.streak.collectAsState()
+        val maxStreak by viewModel.maxStreak.collectAsState()
         val lives by viewModel.lives.collectAsState()
         val timeRemaining by viewModel.timeRemaining.collectAsState()
         val secondsRemaining by viewModel.secondsRemaining.collectAsState()
@@ -72,7 +73,7 @@ class MainActivity : ComponentActivity() {
               GameOverScreen(
                 playerName = playerName,
                 score = score,
-                streak = streak,
+                streak = maxStreak,
                 difficulty = difficulty,
                 onRetry = { viewModel.startGame() },
                 onGoToMenu = { viewModel.navigateTo(GameState.MainMenu) }

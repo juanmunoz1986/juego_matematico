@@ -55,7 +55,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentSubDifficulty = MutableStateFlow(DifficultyLevel.BAJO)
     val currentSubDifficulty: StateFlow<DifficultyLevel> = _currentSubDifficulty.asStateFlow()
 
+    private val _customTimeSec = MutableStateFlow(15)
+    val customTimeSec: StateFlow<Int> = _customTimeSec.asStateFlow()
+
+    private val _isDynamicReduction = MutableStateFlow(false)
+    val isDynamicReduction: StateFlow<Boolean> = _isDynamicReduction.asStateFlow()
+
     private var questionsCorrect = 0
+
+    fun setGameTimerConfig(timeSec: Int, isDynamic: Boolean) {
+        _customTimeSec.value = timeSec
+        _isDynamicReduction.value = isDynamic
+    }
 
     // Game session states
     private val _currentEquation = MutableStateFlow<EquationGenerator.Equation?>(null)
@@ -66,6 +77,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _streak = MutableStateFlow(0)
     val streak: StateFlow<Int> = _streak.asStateFlow()
+
+    private val _maxStreak = MutableStateFlow(0)
+    val maxStreak: StateFlow<Int> = _maxStreak.asStateFlow()
 
     private val _lives = MutableStateFlow(3)
     val lives: StateFlow<Int> = _lives.asStateFlow()
@@ -119,6 +133,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun startGame() {
         _score.value = 0
         _streak.value = 0
+        _maxStreak.value = 0
         questionsCorrect = 0
         _lives.value = 3
         _answerStatus.value = null
@@ -156,15 +171,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun startTimer() {
         timerJob?.cancel()
-        val totalSec = if (_difficulty.value == DifficultyLevel.SUPER_PRO) {
-            val baseTime = 25
-            // Reduce by 1 second per correct answer (progression) and 1 second per current streak
-            val progressionReduction = questionsCorrect
-            val streakReduction = _streak.value
-            val calculated = baseTime - progressionReduction - streakReduction
-            if (calculated < 8) 8 else calculated
+        val baseTime = _customTimeSec.value
+        val totalSec = if (_isDynamicReduction.value) {
+            // El tiempo se reduce a medida que avanza (1 racha + correctas)
+            val reduction = questionsCorrect + _streak.value
+            val calculated = baseTime - reduction
+            if (calculated < 4) 4 else calculated
         } else {
-            _difficulty.value.initialTimeSec
+            baseTime
         }
         _secondsRemaining.value = totalSec
         _timeRemaining.value = 1.0f
@@ -222,6 +236,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val pointsEarned = (base + timeBonus) * comboBonus
             _score.value += pointsEarned
             _streak.value += 1
+            if (_streak.value > _maxStreak.value) {
+                _maxStreak.value = _streak.value
+            }
         } else {
             _streak.value = 0
             _lives.value = (_lives.value - 1).coerceAtLeast(0)
@@ -253,7 +270,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 playerName = _playerName.value,
                 score = _score.value,
                 levelReached = _difficulty.value.ordinal + 1,
-                maxStreak = _streak.value,
+                maxStreak = _maxStreak.value,
                 difficultyPlayed = _difficulty.value.displayName
             )
             repository.insertScore(userScore)

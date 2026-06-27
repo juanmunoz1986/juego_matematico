@@ -46,6 +46,11 @@ fun MenuScreen(
     var inputName by remember { mutableStateOf(if (playerName == "Invitado") "" else playerName) }
     val scrollState = rememberScrollState()
 
+    var showConfigDialog by remember { mutableStateOf(false) }
+    val defaultTime = selectedDiff.initialTimeSec
+    var customTime by remember(showConfigDialog) { mutableStateOf(defaultTime.toFloat()) }
+    var isDynamicReduction by remember(showConfigDialog) { mutableStateOf(selectedDiff == DifficultyLevel.SUPER_PRO) }
+
     // Neon Cosmic Gradient Background
     val bgGradient = Brush.verticalGradient(
         colors = listOf(
@@ -275,7 +280,7 @@ fun MenuScreen(
                     if (inputName.isBlank()) {
                         viewModel.setPlayerName("Invitado")
                     }
-                    onStartGame()
+                    showConfigDialog = true
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -341,6 +346,223 @@ fun MenuScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        if (showConfigDialog) {
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { showConfigDialog = false }
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF131525)),
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(2.dp, Brush.horizontalGradient(listOf(Color(0xFF00E5FF), Color(0xFFFF007F))))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "⚙️",
+                            fontSize = 32.sp,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        Text(
+                            text = "AJUSTES DE TIEMPO",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Text(
+                            text = "Ajusta las reglas de tiempo para el nivel ${selectedDiff.displayName}",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Tiempo por pregunta",
+                                color = Color.LightGray,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "${customTime.toInt()}s",
+                                color = Color(0xFF00E5FF),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Slider(
+                            value = customTime,
+                            onValueChange = { customTime = it },
+                            valueRange = 5f..60f,
+                            steps = 10,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("time_slider"),
+                            colors = SliderDefaults.colors(
+                                activeTrackColor = Color(0xFF00E5FF),
+                                inactiveTrackColor = Color(0xFF1F223D),
+                                thumbColor = Color(0xFF00E5FF)
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Text(
+                            text = "MODO DE CRONÓMETRO",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier
+                                .align(Alignment.Start)
+                                .padding(bottom = 8.dp)
+                        )
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isDynamicReduction = false }
+                                .padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (!isDynamicReduction) Color(0xFF1E213A) else Color(0xFF131524)
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(
+                                width = if (!isDynamicReduction) 1.5.dp else 1.dp,
+                                color = if (!isDynamicReduction) Color(0xFF00E5FF) else Color(0xFF1F223D)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = !isDynamicReduction,
+                                    onClick = { isDynamicReduction = false },
+                                    colors = RadioButtonDefaults.colors(
+                                        selectedColor = Color(0xFF00E5FF),
+                                        unselectedColor = Color.Gray
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "Modo Normal",
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "El tiempo por pregunta siempre es fijo.",
+                                        color = Color.Gray,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isDynamicReduction = true }
+                                .padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isDynamicReduction) Color(0xFF1E213A) else Color(0xFF131524)
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(
+                                width = if (isDynamicReduction) 1.5.dp else 1.dp,
+                                color = if (isDynamicReduction) Color(0xFFFF007F) else Color(0xFF1F223D)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = isDynamicReduction,
+                                    onClick = { isDynamicReduction = true },
+                                    colors = RadioButtonDefaults.colors(
+                                        selectedColor = Color(0xFFFF007F),
+                                        unselectedColor = Color.Gray
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "Modo Reducción",
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "El tiempo disminuye a medida que avanzas.",
+                                        color = Color.Gray,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(28.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { showConfigDialog = false },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.LightGray),
+                                border = BorderStroke(1.dp, Color(0xFF2C315E)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("CANCELAR", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    viewModel.setGameTimerConfig(customTime.toInt(), isDynamicReduction)
+                                    showConfigDialog = false
+                                    onStartGame()
+                                },
+                                modifier = Modifier.weight(1.2f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E1530)),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(
+                                    1.dp,
+                                    Brush.horizontalGradient(listOf(Color(0xFF00E5FF), Color(0xFFFF007F)))
+                                )
+                            ) {
+                                Text("¡COMENZAR!", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

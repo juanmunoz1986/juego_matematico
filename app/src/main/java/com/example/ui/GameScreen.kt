@@ -48,6 +48,7 @@ fun GameScreen(
 ) {
     val selectedDifficulty by viewModel.difficulty.collectAsState()
     val currentSubDiff by viewModel.currentSubDifficulty.collectAsState()
+    val isDynamicReduction by viewModel.isDynamicReduction.collectAsState()
 
     // Neon Cosmic Gradient Background
     val bgGradient = Brush.verticalGradient(
@@ -226,9 +227,11 @@ fun GameScreen(
                         ) {
                             Text(
                                 text = if (selectedDifficulty == DifficultyLevel.SUPER_PRO) {
-                                    "MODO SUPER PRO (${currentSubDiff.displayName.uppercase()})"
+                                    val modeSuffix = if (isDynamicReduction) " 🔥" else " ⏱️"
+                                    "MODO SUPER PRO (${currentSubDiff.displayName.uppercase()}$modeSuffix)"
                                 } else {
-                                    "RESUELVE LA OPERACIÓN"
+                                    val modeSuffix = if (isDynamicReduction) " (DINÁMICO 🔥)" else " (FIJO ⏱️)"
+                                    "NIVEL ${selectedDifficulty.displayName.uppercase()}$modeSuffix"
                                 },
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
