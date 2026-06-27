@@ -19,4 +19,13 @@ interface UserScoreDao {
 
     @Query("SELECT MAX(score) FROM user_scores")
     suspend fun getHighScoreGlobal(): Int?
+
+    @Query("SELECT * FROM user_scores WHERE isSynced = 0 AND isOnlinePlay = 1")
+    suspend fun getUnsyncedScores(): List<UserScore>
+
+    @Query("SELECT COUNT(*) FROM user_scores WHERE isSynced = 0 AND isOnlinePlay = 1")
+    fun getUnsyncedCountFlow(): Flow<Int>
+
+    @Query("UPDATE user_scores SET isSynced = 1 WHERE id = :id")
+    suspend fun markAsSynced(id: Int)
 }

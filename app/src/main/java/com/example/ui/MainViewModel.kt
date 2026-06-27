@@ -1,6 +1,7 @@
 package com.example.ui
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
@@ -32,6 +33,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val globalScores: StateFlow<List<UserScore>> = FirestoreManager.globalScores
     val firestoreSyncStatus: StateFlow<String> = FirestoreManager.syncStatus
 
+    private val sharedPrefs = application.getSharedPreferences("acumath_prefs", Context.MODE_PRIVATE)
+
+    private val _ownerName = MutableStateFlow(sharedPrefs.getString("owner_name", "Propietario") ?: "Propietario")
+    val ownerName: StateFlow<String> = _ownerName.asStateFlow()
+
+    private val _isOnlineMode = MutableStateFlow(true)
+    val isOnlineMode: StateFlow<Boolean> = _isOnlineMode.asStateFlow()
+
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+
+    private val _playerName = MutableStateFlow("Invitado")
+    val playerName: StateFlow<String> = _playerName.asStateFlow()
+
+    val unsyncedCount: StateFlow<Int>
+
     init {
         FirestoreManager.initialize(application)
         val database = AppDatabase.getDatabase(application)
@@ -41,13 +58,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+        unsyncedCount = repository.getUnsyncedCountFlow().stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
+        // Lock player name to owner name if online mode is active
+        _playerName.value = if (_isOnlineMode.value) _ownerName.value else "Invitado"
     }
 
     private val _gameState = MutableStateFlow<GameState>(GameState.MainMenu)
     val gameState: StateFlow<GameState> = _gameState.asStateFlow()
-
-    private val _playerName = MutableStateFlow("Invitado")
-    val playerName: StateFlow<String> = _playerName.asStateFlow()
 
     private val _difficulty = MutableStateFlow(DifficultyLevel.BAJO)
     val difficulty: StateFlow<DifficultyLevel> = _difficulty.asStateFlow()
@@ -108,8 +129,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setPlayerName(name: String) {
-        if (name.isNotBlank()) {
+        // Only allow changing player name in OFFLINE mode
+        if (!_isOnlineMode.value && name.isNotBlank()) {
             _playerName.value = name.trim()
+        }
+    }
+
+    fun updateOwnerName(name: String) {
+        if (name.isNotBlank()) {
+            val trimmed = name.trim()
+            _ownerName.value = trimmed
+            sharedPrefs.edit().putString("owner_name", trimmed).apply()
+            if (_isOnlineMode.value) {
+                _playerName.value = trimmed
+            }
         }
     }
 
@@ -264,17 +297,57 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         saveScore()
     }
 
+    fun setOnlineMode(isOnline: Boolean) {
+        _isOnlineMode.value = isOnline
+        if (isOnline) {
+            _playerName.value = _ownerName.value
+            syncOfflineScores()
+        } else {
+            _playerName.value = "Invitado"
+        }
+    }
+
+    fun syncOfflineScores() {
+        if (_isSyncing.value) return
+        viewModelScope.launch {
+            _isSyncing.value = true
+            try {
+                val unsynced = repository.getUnsyncedScores()
+                for (score in unsynced) {
+                    val success = FirestoreManager.submitScore(score)
+                    if (success) {
+                        repository.markAsSynced(score.id)
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore sync errors, we keep unsynced state to retry later
+            } finally {
+                _isSyncing.value = false
+            }
+        }
+    }
+
     private fun saveScore() {
         viewModelScope.launch {
-            val userScore = UserScore(
+            val isOnline = _isOnlineMode.value
+            var success = false
+
+            val tempUserScore = UserScore(
                 playerName = _playerName.value,
                 score = _score.value,
                 levelReached = _difficulty.value.ordinal + 1,
                 maxStreak = _maxStreak.value,
-                difficultyPlayed = _difficulty.value.displayName
+                difficultyPlayed = _difficulty.value.displayName,
+                isSynced = false,
+                isOnlinePlay = isOnline
             )
-            repository.insertScore(userScore)
-            FirestoreManager.submitScore(userScore)
+
+            if (isOnline) {
+                success = FirestoreManager.submitScore(tempUserScore)
+            }
+
+            val finalUserScore = tempUserScore.copy(isSynced = success)
+            repository.insertScore(finalUserScore)
             loadHighScore()
         }
     }

@@ -43,7 +43,12 @@ fun MenuScreen(
     onNavigateToLeaderboard: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
-    var inputName by remember { mutableStateOf(if (playerName == "Invitado") "" else playerName) }
+    val ownerName by viewModel.ownerName.collectAsState()
+    val isOnlineMode by viewModel.isOnlineMode.collectAsState()
+    
+    var inputOwnerName by remember(ownerName) { mutableStateOf(if (ownerName == "Propietario") "" else ownerName) }
+    var inputPlayerName by remember(playerName) { mutableStateOf(if (playerName == "Invitado") "" else playerName) }
+    
     val scrollState = rememberScrollState()
 
     var showConfigDialog by remember { mutableStateOf(false) }
@@ -163,6 +168,172 @@ fun MenuScreen(
                 }
             }
 
+            // Connection / Online/Offline Mode Switcher
+            val isOnlineMode by viewModel.isOnlineMode.collectAsState()
+            val isSyncing by viewModel.isSyncing.collectAsState()
+            val unsyncedCount by viewModel.unsyncedCount.collectAsState()
+            val syncStatus by viewModel.firestoreSyncStatus.collectAsState()
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF131525)),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFF2C315E))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "MODO DE JUEGO",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            letterSpacing = 1.sp
+                        )
+
+                        // Status badge
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (isOnlineMode) {
+                                        if (syncStatus == "Conectado") Color(0x2200FF66) else Color(0x22FFB300)
+                                    } else {
+                                        Color(0x22888888)
+                                    }
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = if (isOnlineMode) syncStatus.uppercase() else "OFFLINE",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isOnlineMode) {
+                                    if (syncStatus == "Conectado") Color(0xFF00FF66) else Color(0xFFFFB300)
+                                } else {
+                                    Color.Gray
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Tab selector row for offline/online
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFF0C0D1A))
+                            .border(BorderStroke(1.dp, Color(0xFF1E2242)), RoundedCornerShape(20.dp))
+                    ) {
+                        // Offline Selector Button
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable { viewModel.setOnlineMode(false) }
+                                .background(if (!isOnlineMode) Color(0xFF1F2445) else Color.Transparent),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("💾", fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "OFFLINE (Local)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (!isOnlineMode) Color.White else Color.Gray
+                                )
+                            }
+                        }
+
+                        // Online Selector Button
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable { viewModel.setOnlineMode(true) }
+                                .background(if (isOnlineMode) Color(0xFF1F2445) else Color.Transparent),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("☁️", fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "ONLINE (Nube)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isOnlineMode) Color.White else Color.Gray
+                                )
+                            }
+                        }
+                    }
+
+                    // Sync panel if we have unsynced scores
+                    if (unsyncedCount > 0) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        HorizontalDivider(color = Color(0xFF1E2242), thickness = 1.dp)
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "$unsyncedCount partida(s) sin subir",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFF007F)
+                                )
+                                Text(
+                                    text = "Tus récords se guardaron sin conexión.",
+                                    fontSize = 11.sp,
+                                    color = Color.Gray
+                                )
+                            }
+
+                            Button(
+                                onClick = { viewModel.syncOfflineScores() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A1F3A)),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, Color(0xFF00E5FF)),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                if (isSyncing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color(0xFF00E5FF),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Subir", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00E5FF))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("🔄", fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Profile Section
             Text(
                 text = "PERFIL DEL JUGADOR",
@@ -175,30 +346,77 @@ fun MenuScreen(
                     .padding(top = 16.dp, bottom = 8.dp, start = 4.dp)
             )
 
-            OutlinedTextField(
-                value = inputName,
-                onValueChange = {
-                    inputName = it
-                    viewModel.setPlayerName(it.ifBlank { "Invitado" })
-                },
-                placeholder = { Text("Introduce tu nombre...", color = Color.Gray) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("name_input"),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color(0xFF00E5FF),
-                    unfocusedBorderColor = Color(0xFF2C315E),
-                    focusedContainerColor = Color(0xFF131524),
-                    unfocusedContainerColor = Color(0xFF131524),
-                    cursorColor = Color(0xFF00E5FF)
-                ),
-                shape = RoundedCornerShape(12.dp)
-            )
+            if (isOnlineMode) {
+                // Online mode: edit the owner name
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = inputOwnerName,
+                        onValueChange = {
+                            inputOwnerName = it
+                            viewModel.updateOwnerName(it.ifBlank { "Propietario" })
+                        },
+                        placeholder = { Text("Nombre del Propietario...", color = Color.Gray) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("name_input_owner"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFF00E5FF),
+                            unfocusedBorderColor = Color(0xFF2C315E),
+                            focusedContainerColor = Color(0xFF131524),
+                            unfocusedContainerColor = Color(0xFF131524),
+                            cursorColor = Color(0xFF00E5FF)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "🔐 Nombre del dueño del celular. Récords se subirán a la nube con este nombre.",
+                        color = Color(0xFF00E5FF),
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+            } else {
+                // Offline mode: edit player name freely
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = inputPlayerName,
+                        onValueChange = {
+                            inputPlayerName = it
+                            viewModel.setPlayerName(it.ifBlank { "Invitado" })
+                        },
+                        placeholder = { Text("Introduce tu nombre...", color = Color.Gray) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("name_input_player"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFFFF007F),
+                            unfocusedBorderColor = Color(0xFF2C315E),
+                            focusedContainerColor = Color(0xFF131524),
+                            unfocusedContainerColor = Color(0xFF131524),
+                            cursorColor = Color(0xFFFF007F)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "🎮 Modo rotativo local. Los récords offline solo se guardan en el celular.",
+                        color = Color.LightGray,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+            }
 
             // Difficulty Selector Title
             Text(
@@ -277,8 +495,14 @@ fun MenuScreen(
             Button(
                 onClick = {
                     focusManager.clearFocus()
-                    if (inputName.isBlank()) {
-                        viewModel.setPlayerName("Invitado")
+                    if (isOnlineMode) {
+                        if (inputOwnerName.isBlank()) {
+                            viewModel.updateOwnerName("Propietario")
+                        }
+                    } else {
+                        if (inputPlayerName.isBlank()) {
+                            viewModel.setPlayerName("Invitado")
+                        }
                     }
                     showConfigDialog = true
                 },

@@ -12,4 +12,16 @@ class ScoreRepository(private val dao: UserScoreDao) {
     suspend fun getHighScoreGlobal(): Int {
         return dao.getHighScoreGlobal() ?: 0
     }
+
+    suspend fun getUnsyncedScores(): List<UserScore> {
+        return dao.getUnsyncedScores()
+    }
+
+    fun getUnsyncedCountFlow(): Flow<Int> {
+        return dao.getUnsyncedCountFlow()
+    }
+
+    suspend fun markAsSynced(id: Int) {
+        dao.markAsSynced(id)
+    }
 }

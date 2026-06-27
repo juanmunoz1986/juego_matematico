@@ -7,6 +7,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 object FirestoreManager {
     private const val TAG = "FirestoreManager"
@@ -95,10 +97,11 @@ object FirestoreManager {
         }
     }
 
-    fun submitScore(score: UserScore) {
+    suspend fun submitScore(score: UserScore): Boolean = suspendCancellableCoroutine { continuation ->
         val db = firestore ?: run {
             Log.d(TAG, "Firebase no disponible, omitiendo submitScore.")
-            return
+            if (continuation.isActive) continuation.resume(false)
+            return@suspendCancellableCoroutine
         }
         try {
             val scoreMap = hashMapOf(
@@ -114,12 +117,15 @@ object FirestoreManager {
                 .add(scoreMap)
                 .addOnSuccessListener { ref ->
                     Log.d(TAG, "Puntaje subido con éxito ID: ${ref.id}")
+                    if (continuation.isActive) continuation.resume(true)
                 }
                 .addOnFailureListener { e ->
                     Log.e(TAG, "Error al subir puntaje a Firestore", e)
+                    if (continuation.isActive) continuation.resume(false)
                 }
         } catch (e: Exception) {
             Log.e(TAG, "Error en submitScore", e)
+            if (continuation.isActive) continuation.resume(false)
         }
     }
 }

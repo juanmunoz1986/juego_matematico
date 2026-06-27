@@ -11,5 +11,7 @@ data class UserScore(
     val levelReached: Int,
     val maxStreak: Int,
     val difficultyPlayed: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isSynced: Boolean = false,
+    val isOnlinePlay: Boolean = true
 )
