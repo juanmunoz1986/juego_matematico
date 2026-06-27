@@ -52,6 +52,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _difficulty = MutableStateFlow(DifficultyLevel.BAJO)
     val difficulty: StateFlow<DifficultyLevel> = _difficulty.asStateFlow()
 
+    private val _currentSubDifficulty = MutableStateFlow(DifficultyLevel.BAJO)
+    val currentSubDifficulty: StateFlow<DifficultyLevel> = _currentSubDifficulty.asStateFlow()
+
+    private var questionsCorrect = 0
+
     // Game session states
     private val _currentEquation = MutableStateFlow<EquationGenerator.Equation?>(null)
     val currentEquation: StateFlow<EquationGenerator.Equation?> = _currentEquation.asStateFlow()
@@ -114,6 +119,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun startGame() {
         _score.value = 0
         _streak.value = 0
+        questionsCorrect = 0
         _lives.value = 3
         _answerStatus.value = null
         _selectedAnswer.value = null
@@ -127,7 +133,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _answerStatus.value = null
         isAnswering = false
         
-        val eq = EquationGenerator.generate(_difficulty.value)
+        val currentLevel = _difficulty.value
+        val dynamicLevel = if (currentLevel == DifficultyLevel.SUPER_PRO) {
+            val subDiff = when {
+                questionsCorrect < 3 -> DifficultyLevel.BAJO
+                questionsCorrect < 7 -> DifficultyLevel.MEDIO
+                questionsCorrect < 12 -> DifficultyLevel.ALTO
+                else -> DifficultyLevel.EXPERTO
+            }
+            _currentSubDifficulty.value = subDiff
+            subDiff
+        } else {
+            _currentSubDifficulty.value = currentLevel
+            currentLevel
+        }
+
+        val eq = EquationGenerator.generate(dynamicLevel)
         _currentEquation.value = eq
 
         startTimer()
@@ -137,11 +158,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         timerJob?.cancel()
         val totalSec = if (_difficulty.value == DifficultyLevel.SUPER_PRO) {
             val baseTime = 25
-            // Every 350 points, reduce by 1 second.
-            val scoreReduction = _score.value / 350
-            // Each unit of current streak reduces the timer by 1 second.
+            // Reduce by 1 second per correct answer (progression) and 1 second per current streak
+            val progressionReduction = questionsCorrect
             val streakReduction = _streak.value
-            val calculated = baseTime - scoreReduction - streakReduction
+            val calculated = baseTime - progressionReduction - streakReduction
             if (calculated < 8) 8 else calculated
         } else {
             _difficulty.value.initialTimeSec
@@ -193,6 +213,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _answerStatus.value = isCorrect
 
         if (isCorrect) {
+            questionsCorrect++
             val currentDiff = _difficulty.value
             val timeBonus = (_secondsRemaining.value * 2)
             val base = currentDiff.basePoints

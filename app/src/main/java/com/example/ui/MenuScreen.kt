@@ -240,7 +240,9 @@ fun MenuScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column {
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 Text(
                                     text = level.displayName,
                                     color = if (isSelected) Color(0xFF00E5FF) else Color.White,
@@ -257,14 +259,6 @@ fun MenuScreen(
                                     },
                                     color = Color.Gray,
                                     fontSize = 12.sp
-                                )
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "${level.initialTimeSec}s",
-                                    color = Color(0xFFFF007F),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }

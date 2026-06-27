@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.logic.EquationGenerator
+import com.example.logic.DifficultyLevel
 
 @Composable
 fun GameScreen(
@@ -45,6 +46,9 @@ fun GameScreen(
     onAnswerSubmitted: (Int) -> Unit,
     onQuitGame: () -> Unit
 ) {
+    val selectedDifficulty by viewModel.difficulty.collectAsState()
+    val currentSubDiff by viewModel.currentSubDifficulty.collectAsState()
+
     // Neon Cosmic Gradient Background
     val bgGradient = Brush.verticalGradient(
         colors = listOf(
@@ -221,7 +225,11 @@ fun GameScreen(
                                 .padding(horizontal = 12.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "RESUELVE LA OPERACIÓN",
+                                text = if (selectedDifficulty == DifficultyLevel.SUPER_PRO) {
+                                    "MODO SUPER PRO (${currentSubDiff.displayName.uppercase()})"
+                                } else {
+                                    "RESUELVE LA OPERACIÓN"
+                                },
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFFF007F),
@@ -234,11 +242,13 @@ fun GameScreen(
                         // Polished Slate Board for Math presentation
                         val displayEquation = currentEquation.text.replace("*", "×")
                         val calculatedFontSize = when {
-                            displayEquation.length > 25 -> 18.sp
-                            displayEquation.length > 18 -> 22.sp
-                            displayEquation.length > 12 -> 26.sp
-                            else -> 32.sp
+                            displayEquation.length > 35 -> 13.sp
+                            displayEquation.length > 28 -> 16.sp
+                            displayEquation.length > 20 -> 20.sp
+                            displayEquation.length > 12 -> 25.sp
+                            else -> 30.sp
                         }
+                        val horizontalPadding = if (displayEquation.length > 25) 12.dp else 20.dp
 
                         Card(
                             modifier = Modifier
@@ -259,7 +269,7 @@ fun GameScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 28.dp),
+                                    .padding(horizontal = horizontalPadding, vertical = 28.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -269,8 +279,8 @@ fun GameScreen(
                                     fontFamily = FontFamily.Monospace,
                                     color = Color.White,
                                     textAlign = TextAlign.Center,
-                                    maxLines = 1,
-                                    softWrap = false,
+                                    maxLines = 2,
+                                    softWrap = true,
                                     modifier = Modifier.testTag("equation_display")
                                 )
                             }
