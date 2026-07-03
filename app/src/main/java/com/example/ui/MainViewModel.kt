@@ -164,6 +164,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (state == GameState.MainMenu) {
             loadHighScore()
         }
+        if (state == GameState.Leaderboard) {
+            viewModelScope.launch { SupabaseManager.fetchLeaderboard() }
+        }
     }
 
     fun startGame() {
