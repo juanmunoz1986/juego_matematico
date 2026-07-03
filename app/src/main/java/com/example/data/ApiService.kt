@@ -1,5 +1,6 @@
 package com.example.data
 
+import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import retrofit2.Response
 import retrofit2.http.Body
@@ -28,7 +29,8 @@ data class SupabaseScoreRequest(
     val score: Int,
     val max_streak: Int,
     val difficulty: String,
-    val level: Int
+    // La columna en la tabla `scores` se llama `level_reached`
+    @Json(name = "level_reached") val level: Int
 )
 
 @JsonClass(generateAdapter = true)
@@ -37,9 +39,15 @@ data class SupabaseLeaderboardItem(
     val score: Int = 0,
     val max_streak: Int? = 0,
     val difficulty: String? = "",
-    val level: Int? = 1,
-    val display_name: String? = "Invitado",
+    // La vista `leaderboard` expone `level_reached` y `player_name`
+    @Json(name = "level_reached") val level: Int? = 1,
+    @Json(name = "player_name") val display_name: String? = "Invitado",
     val created_at: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class RefreshTokenRequest(
+    val refresh_token: String
 )
 
 @JsonClass(generateAdapter = true)
@@ -53,6 +61,13 @@ interface ApiService {
     suspend fun signUpAnonymous(
         @Header("apikey") apiKey: String,
         @Body body: Map<String, String> = emptyMap()
+    ): SupabaseAuthResponse
+
+    @POST("auth/v1/token?grant_type=refresh_token")
+    @Headers("Content-Type: application/json")
+    suspend fun refreshToken(
+        @Header("apikey") apiKey: String,
+        @Body body: RefreshTokenRequest
     ): SupabaseAuthResponse
 
     @POST("rest/v1/scores")

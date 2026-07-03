@@ -21,14 +21,17 @@ object SupabaseManager {
     private const val TAG = "SupabaseManager"
     private const val PREFS_NAME = "supabase_auth_prefs"
     private const val KEY_JWT = "access_token"
+    private const val KEY_REFRESH = "refresh_token"
     private const val KEY_USER_ID = "user_id"
 
     private var apiService: ApiService? = null
     private var supabaseUrl: String = ""
     private var supabaseAnonKey: String = ""
 
+    private var appContext: Context? = null
     private var cachedUserId: String? = null
     private var cachedJwt: String? = null
+    private var cachedRefreshToken: String? = null
 
     private val _globalScores = MutableStateFlow<List<UserScore>>(emptyList())
     val globalScores: StateFlow<List<UserScore>> = _globalScores
@@ -53,8 +56,13 @@ object SupabaseManager {
         }
 
         try {
+            // Nunca loguear cuerpos (incluyen el JWT) en builds de release
             val logging = HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
+                level = if (BuildConfig.DEBUG) {
+                    HttpLoggingInterceptor.Level.BODY
+                } else {
+                    HttpLoggingInterceptor.Level.NONE
+                }
             }
 
             val okHttpClient = OkHttpClient.Builder()
@@ -74,11 +82,13 @@ object SupabaseManager {
                 .build()
 
             apiService = retrofit.create(ApiService::class.java)
+            appContext = context.applicationContext
 
             // Load saved session
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             cachedUserId = prefs.getString(KEY_USER_ID, null)
             cachedJwt = prefs.getString(KEY_JWT, null)
+            cachedRefreshToken = prefs.getString(KEY_REFRESH, null)
 
             CoroutineScope(Dispatchers.IO).launch {
                 authenticateAndSync(context)
@@ -91,29 +101,11 @@ object SupabaseManager {
     }
 
     private suspend fun authenticateAndSync(context: Context) {
-        val service = apiService ?: return
-
         try {
             if (cachedUserId == null || cachedJwt == null) {
                 _syncStatus.value = "Autenticando..."
                 Log.d(TAG, "No hay sesión activa. Iniciando registro anónimo.")
-                val authRes = service.signUpAnonymous(supabaseAnonKey)
-                
-                cachedUserId = authRes.user.id
-                cachedJwt = authRes.access_token
-
-                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                prefs.edit()
-                    .putString(KEY_USER_ID, cachedUserId)
-                    .putString(KEY_JWT, cachedJwt)
-                    .apply()
-
-                Log.d(TAG, "Registro anónimo exitoso. Usuario ID: $cachedUserId")
-
-                // First time setup: sync initial owner name to Supabase players table
-                val mainPrefs = context.getSharedPreferences("acumath_prefs", Context.MODE_PRIVATE)
-                val ownerName = mainPrefs.getString("owner_name", "Propietario") ?: "Propietario"
-                updatePlayerNameInDatabase(ownerName)
+                signUpAnonymousAndSaveSession()
             } else {
                 Log.d(TAG, "Sesión de Supabase cargada. ID de Usuario: $cachedUserId")
             }
@@ -130,6 +122,60 @@ object SupabaseManager {
             } catch (le: Exception) {
                 // Ignore
             }
+        }
+    }
+
+    private fun saveSession(userId: String, jwt: String, refreshToken: String?) {
+        cachedUserId = userId
+        cachedJwt = jwt
+        cachedRefreshToken = refreshToken
+
+        appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)?.edit()
+            ?.putString(KEY_USER_ID, userId)
+            ?.putString(KEY_JWT, jwt)
+            ?.putString(KEY_REFRESH, refreshToken)
+            ?.apply()
+    }
+
+    private suspend fun signUpAnonymousAndSaveSession() {
+        val service = apiService ?: throw IllegalStateException("ApiService no inicializado")
+        val authRes = service.signUpAnonymous(supabaseAnonKey)
+        saveSession(authRes.user.id, authRes.access_token, authRes.refresh_token)
+        Log.d(TAG, "Registro anónimo exitoso. Usuario ID: $cachedUserId")
+
+        // Sync the owner name to the Supabase players table for the new identity.
+        // allowRetry=false: evita recursión signup -> 401 -> refresh -> signup.
+        val mainPrefs = appContext?.getSharedPreferences("acumath_prefs", Context.MODE_PRIVATE)
+        val ownerName = mainPrefs?.getString("owner_name", "Propietario") ?: "Propietario"
+        updatePlayerNameInDatabase(ownerName, allowRetry = false)
+    }
+
+    /**
+     * Renueva el JWT con el refresh token guardado. Si el refresh falla
+     * (token revocado/expirado), crea una nueva identidad anónima.
+     * @return true si al terminar hay una sesión utilizable.
+     */
+    private suspend fun refreshSession(): Boolean {
+        val service = apiService ?: return false
+
+        val refresh = cachedRefreshToken
+        if (refresh != null) {
+            try {
+                val authRes = service.refreshToken(supabaseAnonKey, RefreshTokenRequest(refresh))
+                saveSession(authRes.user.id, authRes.access_token, authRes.refresh_token)
+                Log.d(TAG, "Sesión renovada con refresh token.")
+                return true
+            } catch (e: Exception) {
+                Log.w(TAG, "Refresh token inválido (${e.message}). Se creará una nueva identidad anónima.")
+            }
+        }
+
+        return try {
+            signUpAnonymousAndSaveSession()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "No fue posible re-autenticar: ${e.message}", e)
+            false
         }
     }
 
@@ -165,16 +211,22 @@ object SupabaseManager {
         val token = cachedJwt ?: return@withContext false
 
         try {
-            val req = SupabaseScoreRequest(
-                player_id = userId,
-                score = score.score,
-                max_streak = score.maxStreak,
-                difficulty = score.difficultyPlayed,
-                level = score.levelReached
+            var response = service.submitScore(
+                supabaseAnonKey,
+                "Bearer $token",
+                buildScoreRequest(userId, score)
             )
 
-            val bearer = "Bearer $token"
-            val response = service.submitScore(supabaseAnonKey, bearer, req)
+            // JWT expirado: renovar sesión y reintentar una vez
+            if (response.code() == 401 && refreshSession()) {
+                val freshUserId = cachedUserId ?: return@withContext false
+                val freshToken = cachedJwt ?: return@withContext false
+                response = service.submitScore(
+                    supabaseAnonKey,
+                    "Bearer $freshToken",
+                    buildScoreRequest(freshUserId, score)
+                )
+            }
 
             if (response.isSuccessful) {
                 Log.d(TAG, "Puntaje subido con éxito a Supabase")
@@ -191,21 +243,39 @@ object SupabaseManager {
         }
     }
 
+    private fun buildScoreRequest(userId: String, score: UserScore) = SupabaseScoreRequest(
+        player_id = userId,
+        score = score.score,
+        max_streak = score.maxStreak,
+        difficulty = score.difficultyPlayed,
+        level = score.levelReached
+    )
+
     suspend fun updatePlayerName(newName: String): Boolean = withContext(Dispatchers.IO) {
         updatePlayerNameInDatabase(newName)
     }
 
-    private suspend fun updatePlayerNameInDatabase(newName: String): Boolean {
+    private suspend fun updatePlayerNameInDatabase(newName: String, allowRetry: Boolean = true): Boolean {
         val service = apiService ?: return false
         val userId = cachedUserId ?: return false
         val token = cachedJwt ?: return false
 
         try {
-            val bearer = "Bearer $token"
             val profile = SupabasePlayerProfile(display_name = newName)
-            val filter = "eq.$userId"
-            
-            val response = service.updatePlayerProfile(supabaseAnonKey, bearer, filter, profile)
+
+            var response = service.updatePlayerProfile(
+                supabaseAnonKey, "Bearer $token", "eq.$userId", profile
+            )
+
+            // JWT expirado: renovar sesión y reintentar una vez
+            if (response.code() == 401 && allowRetry && refreshSession()) {
+                val freshUserId = cachedUserId ?: return false
+                val freshToken = cachedJwt ?: return false
+                response = service.updatePlayerProfile(
+                    supabaseAnonKey, "Bearer $freshToken", "eq.$freshUserId", profile
+                )
+            }
+
             if (response.isSuccessful) {
                 Log.d(TAG, "Nombre de jugador actualizado en Supabase: $newName")
                 return true
