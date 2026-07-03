@@ -5,7 +5,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
-import com.example.data.FirestoreManager
+import com.example.data.SupabaseManager
 import com.example.data.ScoreRepository
 import com.example.data.UserScore
 import com.example.logic.DifficultyLevel
@@ -30,8 +30,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: ScoreRepository
     val topScores: StateFlow<List<UserScore>>
-    val globalScores: StateFlow<List<UserScore>> = FirestoreManager.globalScores
-    val firestoreSyncStatus: StateFlow<String> = FirestoreManager.syncStatus
+    val globalScores: StateFlow<List<UserScore>> = SupabaseManager.globalScores
+    val firestoreSyncStatus: StateFlow<String> = SupabaseManager.syncStatus
 
     private val sharedPrefs = application.getSharedPreferences("acumath_prefs", Context.MODE_PRIVATE)
 
@@ -50,7 +50,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val unsyncedCount: StateFlow<Int>
 
     init {
-        FirestoreManager.initialize(application)
+        SupabaseManager.initialize(application)
         val database = AppDatabase.getDatabase(application)
         repository = ScoreRepository(database.userScoreDao())
         topScores = repository.topScores.stateIn(
@@ -142,6 +142,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             sharedPrefs.edit().putString("owner_name", trimmed).apply()
             if (_isOnlineMode.value) {
                 _playerName.value = trimmed
+                viewModelScope.launch {
+                    SupabaseManager.updatePlayerName(trimmed)
+                }
             }
         }
     }
@@ -314,7 +317,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val unsynced = repository.getUnsyncedScores()
                 for (score in unsynced) {
-                    val success = FirestoreManager.submitScore(score)
+                    val success = SupabaseManager.submitScore(score)
                     if (success) {
                         repository.markAsSynced(score.id)
                     }
@@ -343,7 +346,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
 
             if (isOnline) {
-                success = FirestoreManager.submitScore(tempUserScore)
+                success = SupabaseManager.submitScore(tempUserScore)
             }
 
             val finalUserScore = tempUserScore.copy(isSynced = success)

@@ -16,6 +16,22 @@
 # debugging stack traces.
 #-keepattributes SourceFile,LineNumberTable
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep Room entities, DAOs, and Database classes
+-keep class com.example.data.** { *; }
+
+# Keep Equation and Difficulty Level logic
+-keep class com.example.logic.** { *; }
+
+# Keep Retrofit classes, interfaces and annotations
+-keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
+-keepclassmembers class * {
+    @retrofit2.http.* <methods>;
+}
+-dontwarn retrofit2.**
+
+# Keep Moshi json-annotated fields
+-keepclassmembers class * {
+    @com.squareup.moshi.Json *;
+}
+-dontwarn com.squareup.moshi.**
+
